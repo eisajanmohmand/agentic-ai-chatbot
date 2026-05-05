@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
-import pathlib
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from api.agents import route_message, run_agent
+from agents import route_message, run_agent
+import pathlib
+
+HTML = pathlib.Path(__file__).parent / "index.html"
 
 app = FastAPI()
 
@@ -20,8 +22,7 @@ class ChatRequest(BaseModel):
 
 @app.get("/")
 def root():
-    html = pathlib.Path(pathlib.Path(__file__).parent.parent / "public" / "index.html").read_text()
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=HTML.read_text())
 
 @app.post("/chat")
 def chat(req: ChatRequest):
