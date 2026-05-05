@@ -1,9 +1,12 @@
+import sys
+import pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from agents import route_message, run_agent
-import pathlib
 
 HTML = pathlib.Path(__file__).parent / "index.html"
 
