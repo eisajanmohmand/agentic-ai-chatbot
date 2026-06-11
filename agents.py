@@ -81,7 +81,7 @@ def route_message(user_message: str) -> str:
     return response.choices[0].message.content.strip().lower()
 
 
-def run_agent(agent_type: str, conversation_history: list) -> str:
+def run_agent(agent_type: str, conversation_history: list, image_b64: str = None, image_mime: str = None) -> str:
     system_prompts = {
         "symptom": SYMPTOM_AGENT_PROMPT,
         "medication": MEDICATION_AGENT_PROMPT,
@@ -89,10 +89,24 @@ def run_agent(agent_type: str, conversation_history: list) -> str:
     }
     system_prompt = system_prompts.get(agent_type, SYMPTOM_AGENT_PROMPT)
 
-    messages = [{"role": "system", "content": system_prompt}] + conversation_history
+    if image_b64 and image_mime:
+        prior = conversation_history[:-1]
+        last_text = conversation_history[-1]["content"] if conversation_history else ""
+        vision_msg = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": last_text},
+                {"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{image_b64}"}}
+            ]
+        }
+        messages = [{"role": "system", "content": system_prompt}] + prior + [vision_msg]
+        model = "meta-llama/llama-4-scout-17b-16e-instruct"
+    else:
+        messages = [{"role": "system", "content": system_prompt}] + conversation_history
+        model = "llama-3.3-70b-versatile"
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=model,
         messages=messages,
         temperature=0.3,
         max_tokens=600,

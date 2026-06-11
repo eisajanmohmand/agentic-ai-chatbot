@@ -14,7 +14,7 @@ Your job:
 
 Rules:
 - Be precise and empathetic.
-- Do not prescribe medicine.
+- Do  prescribe medicine.
 - Recommend doctor consultation when needed.
 - Format urgency clearly as: Urgency: Low / Medium / High"""
 
@@ -74,17 +74,33 @@ def route_message(user_message: str) -> str:
     return response.choices[0].message.content.strip().lower()
 
 
-def run_agent(agent_type: str, conversation_history: list) -> str:
+def run_agent(agent_type: str, conversation_history: list, image_base64: str = None, image_mime: str = None) -> str:
     system_prompts = {
         "symptom": SYMPTOM_AGENT_PROMPT,
         "medication": MEDICATION_AGENT_PROMPT,
         "emergency": EMERGENCY_AGENT_PROMPT,
     }
     system_prompt = system_prompts.get(agent_type, SYMPTOM_AGENT_PROMPT)
-    messages = [{"role": "system", "content": system_prompt}] + conversation_history
+
+    # If image provided, build a vision message for the last user turn
+    if image_base64 and image_mime:
+        history_without_last = conversation_history[:-1]
+        last_text = conversation_history[-1]["content"] if conversation_history else ""
+        vision_message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": last_text or "Analyze this image for any visible disease or medical condition."},
+                {"type": "image_url", "image_url": {"url": f"data:{image_mime};base64,{image_base64}"}}
+            ]
+        }
+        messages = [{"role": "system", "content": system_prompt}] + history_without_last + [vision_message]
+        model = "meta-llama/llama-4-scout-17b-16e-instruct"
+    else:
+        messages = [{"role": "system", "content": system_prompt}] + conversation_history
+        model = "llama-3.3-70b-versatile"
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=model,
         messages=messages,
         temperature=0.3,
         max_tokens=600,

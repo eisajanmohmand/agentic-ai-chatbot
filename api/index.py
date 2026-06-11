@@ -22,6 +22,8 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     history: list
+    image_base64: str = None
+    image_mime: str = None
 
 @app.get("/")
 def root():
@@ -37,7 +39,7 @@ def chat(req: ChatRequest):
         agent_type = "emergency"
 
     history = req.history + [{"role": "user", "content": req.message}]
-    response = run_agent(agent_type, history)
+    response = run_agent(agent_type, history, req.image_base64, req.image_mime)
 
     agent_labels = {
         "symptom": "🩺 Symptom Analysis Agent",

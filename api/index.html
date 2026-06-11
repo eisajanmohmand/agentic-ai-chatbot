@@ -10,19 +10,23 @@
 
     /* Sidebar */
     #sidebar {
-      width: 260px; background: #1a1a2e; color: #ccc; padding: 24px 16px;
-      display: flex; flex-direction: column; gap: 16px; flex-shrink: 0;
+      width: 240px; background: #1a1a2e; color: #ccc; padding: 16px 12px;
+      display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;
     }
-    #sidebar h2 { color: #fff; font-size: 18px; }
-    #sidebar p { font-size: 13px; line-height: 1.6; }
-    #sidebar .agent-info { background: #16213e; border-radius: 8px; padding: 12px; font-size: 13px; }
-    #sidebar .agent-info span { display: block; margin-bottom: 6px; }
-    #clear-btn {
-      margin-top: auto; background: #e74c3c; color: white; border: none;
-      padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px;
+    #sidebar h2 { color: #fff; font-size: 17px; }
+    #new-chat-btn {
+      background: #3498db; color: white; border: none; padding: 9px;
+      border-radius: 8px; cursor: pointer; font-size: 13px;
     }
-    #clear-btn:hover { background: #c0392b; }
-    #sidebar .disclaimer { font-size: 11px; color: #888; margin-top: 8px; }
+    #new-chat-btn:hover { background: #2980b9; }
+    #history-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .history-item {
+      background: #16213e; border-radius: 7px; padding: 9px 10px; font-size: 12px;
+      cursor: pointer; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .history-item:hover { background: #0f3460; color: #fff; }
+    .history-item.active { background: #0f3460; color: #fff; border-left: 3px solid #3498db; }
+    #sidebar .disclaimer { font-size: 11px; color: #888; }
 
     /* Main chat */
     #main { flex: 1; display: flex; flex-direction: column; }
@@ -45,6 +49,7 @@
     }
     .user .bubble { background: #3498db; color: white; border-bottom-right-radius: 4px; }
     .assistant .bubble { background: #fff; color: #2c3e50; border: 1px solid #ddd; border-bottom-left-radius: 4px; }
+    .bubble img { max-width: 220px; max-height: 200px; border-radius: 8px; display: block; margin-top: 6px; }
 
     .agent-tag { font-size: 11px; color: #888; margin-top: 4px; padding: 0 4px; }
 
@@ -55,10 +60,20 @@
     .typing span:nth-child(3) { animation-delay: 0.4s; }
     @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
 
+    #img-preview { padding: 8px 24px 0; }
+    #img-preview img { max-height: 80px; border-radius: 8px; border: 1px solid #ddd; }
+    #img-preview button { background: none; border: none; cursor: pointer; color: #e74c3c; font-size: 18px; vertical-align: top; }
+
     #input-area {
-      padding: 16px 24px; background: #fff; border-top: 1px solid #ddd;
-      display: flex; gap: 10px;
+      padding: 12px 24px 16px; background: #fff; border-top: 1px solid #ddd;
+      display: flex; gap: 8px; align-items: center;
     }
+    #img-btn {
+      background: none; border: 1px solid #ddd; border-radius: 50%; width: 40px; height: 40px;
+      cursor: pointer; font-size: 18px; flex-shrink: 0;
+    }
+    #img-btn:hover { background: #f0f4f8; }
+    #img-input { display: none; }
     #user-input {
       flex: 1; padding: 12px 16px; border: 1px solid #ddd; border-radius: 24px;
       font-size: 14px; outline: none;
@@ -76,30 +91,22 @@
 
 <div id="sidebar">
   <h2>🏥 Medical AI</h2>
-  <div class="agent-info">
-    <span>🩺 <b>Symptom Agent</b></span>
-    <span>Analyzes symptoms & estimates urgency</span>
-  </div>
-  <div class="agent-info">
-    <span>💊 <b>Medication Agent</b></span>
-    <span>Checks medicines, side effects & interactions</span>
-  </div>
-  <div class="agent-info">
-    <span>🚑 <b>Emergency Agent</b></span>
-    <span>Detects emergencies & advises action</span>
-  </div>
-  <button id="clear-btn">🗑️ Clear Chat</button>
+  <button id="new-chat-btn">✏️ New Chat</button>
+  <div id="history-list"></div>
   <p class="disclaimer">⚠️ Not a substitute for professional medical advice.</p>
 </div>
 
 <div id="main">
   <div id="header">
     <h1>🏥 Agentic Medical Chatbot</h1>
-    <p>Powered by 3 specialized AI agents</p>
+    
   </div>
   <div id="chat-box"></div>
+  <div id="img-preview" style="display:none;"></div>
   <div id="input-area">
-    <input id="user-input" type="text" placeholder="Describe your symptoms, ask about a medicine, or report an emergency..." />
+    <button id="img-btn" title="Attach image">🖼️</button>
+    <input id="img-input" type="file" accept="image/*" />
+    <input id="user-input" type="text" placeholder="Describe symptoms, ask about medicine, or attach a disease image..." />
     <button id="send-btn">Send</button>
   </div>
 </div>
@@ -108,14 +115,69 @@
   const chatBox = document.getElementById("chat-box");
   const input = document.getElementById("user-input");
   const sendBtn = document.getElementById("send-btn");
-  let history = [];
+  const imgBtn = document.getElementById("img-btn");
+  const imgInput = document.getElementById("img-input");
+  const imgPreview = document.getElementById("img-preview");
+  const historyList = document.getElementById("history-list");
 
-  function appendMessage(role, text, agentLabel = "") {
+  let chats = JSON.parse(localStorage.getItem("chats") || "[]");
+  let currentId = null;
+  let history = [];
+  let pendingImage = null; // { dataUrl, base64, mimeType }
+
+  function saveChats() { localStorage.setItem("chats", JSON.stringify(chats)); }
+
+  function renderSidebar() {
+    historyList.innerHTML = "";
+    chats.slice().reverse().forEach(c => {
+      const el = document.createElement("div");
+      el.className = "history-item" + (c.id === currentId ? " active" : "");
+      el.textContent = c.title;
+      el.onclick = () => loadChat(c.id);
+      historyList.appendChild(el);
+    });
+  }
+
+  function loadChat(id) {
+    const chat = chats.find(c => c.id === id);
+    if (!chat) return;
+    currentId = id;
+    history = chat.history;
+    chatBox.innerHTML = "";
+    chat.messages.forEach(m => renderMessage(m.role, m.text, m.agentLabel, m.imageUrl));
+    renderSidebar();
+  }
+
+  function startNewChat() {
+    currentId = Date.now().toString();
+    history = [];
+    chatBox.innerHTML = "";
+    pendingImage = null;
+    imgPreview.style.display = "none";
+    imgPreview.innerHTML = "";
+    const chat = { id: currentId, title: "New Chat", history: [], messages: [] };
+    chats.push(chat);
+    saveChats();
+    renderSidebar();
+  }
+
+  function currentChat() { return chats.find(c => c.id === currentId); }
+
+  function renderMessage(role, text, agentLabel = "", imageUrl = null) {
     const wrapper = document.createElement("div");
     wrapper.className = `message ${role}`;
     const bubble = document.createElement("div");
     bubble.className = "bubble";
-    bubble.textContent = text;
+    if (imageUrl) {
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      bubble.appendChild(img);
+    }
+    if (text) {
+      const span = document.createElement("span");
+      span.textContent = text;
+      bubble.appendChild(span);
+    }
     wrapper.appendChild(bubble);
     if (agentLabel) {
       const tag = document.createElement("div");
@@ -143,38 +205,87 @@
 
   async function sendMessage() {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && !pendingImage) return;
+    if (!currentId) startNewChat();
     input.value = "";
     sendBtn.disabled = true;
 
-    appendMessage("user", text);
-    history.push({ role: "user", content: text });
+    const imageUrl = pendingImage ? pendingImage.dataUrl : null;
+    const imageBase64 = pendingImage ? pendingImage.base64 : null;
+    const imageMime = pendingImage ? pendingImage.mimeType : null;
+    pendingImage = null;
+    imgPreview.style.display = "none";
+    imgPreview.innerHTML = "";
+
+    renderMessage("user", text, "", imageUrl);
+    const chat = currentChat();
+    chat.messages.push({ role: "user", text, imageUrl });
+    if (!text && imageUrl) {
+      chat.title = "Image Analysis";
+    } else if (chat.title === "New Chat" && text) {
+      chat.title = text.slice(0, 30);
+    }
+    history.push({ role: "user", content: text || "[image attached]" });
+    chat.history = history.slice();
+    saveChats();
+    renderSidebar();
     showTyping();
 
     try {
       const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history: history.slice(0, -1) }),
+        body: JSON.stringify({
+          message: text || "Analyze this image for any disease or medical condition.",
+          history: history.slice(0, -1),
+          image_base64: imageBase64,
+          image_mime: imageMime
+        }),
       });
       const data = await res.json();
       removeTyping();
-      appendMessage("assistant", data.response, data.agent);
+      renderMessage("assistant", data.response, data.agent);
       history.push({ role: "assistant", content: data.response });
+      chat.messages.push({ role: "assistant", text: data.response, agentLabel: data.agent });
+      chat.history = history.slice();
+      saveChats();
     } catch {
       removeTyping();
-      appendMessage("assistant", "⚠️ Error connecting to server. Please try again.");
+      renderMessage("assistant", "⚠️ Error connecting to server. Please try again.");
     }
     sendBtn.disabled = false;
     input.focus();
   }
 
+  imgBtn.addEventListener("click", () => imgInput.click());
+  imgInput.addEventListener("change", () => {
+    const file = imgInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+      const base64 = dataUrl.split(",")[1];
+      pendingImage = { dataUrl, base64, mimeType: file.type };
+      imgPreview.style.display = "block";
+      imgPreview.innerHTML = `<img src="${dataUrl}" /><button onclick="clearImage()">✕</button>`;
+    };
+    reader.readAsDataURL(file);
+    imgInput.value = "";
+  });
+
+  function clearImage() {
+    pendingImage = null;
+    imgPreview.style.display = "none";
+    imgPreview.innerHTML = "";
+  }
+
   sendBtn.addEventListener("click", sendMessage);
   input.addEventListener("keydown", e => { if (e.key === "Enter") sendMessage(); });
-  document.getElementById("clear-btn").addEventListener("click", () => {
-    history = [];
-    chatBox.innerHTML = "";
-  });
+  document.getElementById("new-chat-btn").addEventListener("click", startNewChat);
+
+  // Init
+  if (chats.length > 0) loadChat(chats[chats.length - 1].id);
+  else startNewChat();
 </script>
 </body>
 </html>
